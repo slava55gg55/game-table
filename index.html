@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Викторина</title>
+
+    <style>
+        :root {
+        --primary-color: #007bff;
+        --secondary-color: #0056b3;
+        --secondary-action-color: #28a745;
+        --bg-color: #f4f7f6;
+        --cell-bg: #ffffff;
+        --cell-text: var(--primary-color);
+        --header-bg: var(--primary-color);
+        --header-text: #ffffff;
+        --answered-bg: #6c757d;
+        --answered-text: #ffffff;
+        --shadow: 0 6px 18px rgba(0,0,0,0.12);
+    }
+    
+    /* Глобальный стиль для всех кнопок (чтобы не было нативного/плоского вида) */
+    button {
+        -webkit-appearance: none;
+        appearance: none;
+        background: var(--primary-color);
+        color: #fff;
+        border: none;
+        padding: 12px 18px;
+        border-radius: 8px;
+        font-size: 1rem;
+        cursor: pointer;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.12); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* Убедиться что плитки остаются в своём стиле (переопределить глобальные правила при необходимости) */
+    .question-cell {
+        background-color: var(--cell-bg);
+        color: var(--cell-text);
+    }
+
+    /* Состояние отвечено — фон и цвет текста для всей плитки */
+    .question-cell.answered {
+        background-color: var(--answered-bg);
+        color: var(--answered-text);
+    }
+
+    /* если есть имя — делаем его контрастным (переопределится после удаления !important) */
+    .question-cell.answered-name .cell-name {
+        color: var(--answered-text);
+    }
+
+        html { font-size: 18px; }
+        @media (min-width: 1200px) { html { font-size: 20px; } }
+        @media (min-width: 1600px) { html { font-size: 22px; } }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            min-height: 100vh;
+            margin:0;
+            padding: 30px;
+            box-sizing: border-box;
+        }
+
+        .hidden { display:none; }
+
+        /* ================== МЕНЮ ================== */
+        #menu {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        #menu button {
+            padding: 14px 24px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 8px;
+            margin: 12px;
+            cursor: pointer;
+            background: var(--primary-color);
+            color: #fff;
+        }
+
+        /* ================== КОНСТРУКТОР ================== */
+        #builder {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        #builder input, #builder textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+        #builder button {
+            padding: 10px 20px;
+            margin: 10px 0;
+            border: none;
+            background: var(--secondary-color);
+            color: #fff;
+            border-radius: 6px;
+            cursor:pointer;
+        }
+        .category-block, .question-block {
+            background: #fff;
+            box-shadow: var(--shadow);
+            padding: 18px;
+            border-radius: 10px;
+            margin: 16px 0;
+        }
+
+        /* ================== СТИЛЬ ВИКТОРИНЫ (ТВОЙ) ================== */
+        .container { width: 100%; max-width: 1400px; margin:0 auto; }
+        h1 { text-align:center; color: var(--secondary-color); font-size:2.4rem; }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top:30px;
+        }
+
+        .category-header {
+            background-color: var(--header-bg);
+            color: var(--header-text);
+            padding: 28px;
+            text-align: center;
+            font-size: 1.6rem;
+            font-weight: 700;
+            border-radius: 10px 10px 0 0;
+        }
+
+        /* Сброс стиля кнопки и визуальный стиль плитки */
+        .question-cell {
+            -webkit-appearance: none;
+            appearance: none;
+            background-color: var(--cell-bg);
+            color: var(--cell-text);
+            font-weight: 800;
+            padding: 18px 12px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            border-radius: 12px;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+        .question-cell:focus { outline: 3px solid rgba(0,123,255,0.18); }
+
+        .question-cell:not(:disabled):hover {
+            transform: scale(1.03);
+            box-shadow: var(--shadow);
+        }
+
+        /* Основное число/значение на плитке */
+        .question-cell .cell-value {
+            font-size: 3.2rem;
+            line-height: 1;
+        }
+
+        /* Имя ответившего (появляется внизу плитки) */
+        .question-cell .cell-name {
+            display: block;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+            margin-top: 8px;
+            opacity: 0.95;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            max-width: 100%;
+            line-height: 1;
+        }
+
+        /* когда плитка отмечена как отвеченная и есть имя — скрываем число и делаем имя крупным и контрастным */
+        .question-cell.answered-name .cell-value { 
+            display: none; 
+        }
+        .question-cell.answered-name .cell-name {
+            font-size: 1.4rem;
+            font-weight: 800;
+            padding: 10px 6px;
+            color: var(--answered-text);
+            text-align: center;
+        }
+
+        /* если просто отмечено отвечено, но имени нет — оставляем число, но делаем плитку неактивной */
+        .question-cell.answered:not(.answered-name) .cell-value {
+            opacity: 0.95;
+        }
+
+        /* ================== МОДАЛКА ================== */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .modal-overlay.show {
+        display: flex;
+    }
+
+    .modal-content {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 10px;
+        min-width: 320px;
+        max-width: 680px;
+        width: 90%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        text-align: left;
+        animation: slideIn 0.3s ease;
+
+        /* Вертикальная колонка — каждый элемент в новой строке */
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        align-items: stretch;
+    }
+
+    #modal-category {
+        font-size: 1.2rem;
+        color: var(--secondary-color);
+        margin: 0;
+        font-weight: 600;
+    }
+
+    #modal-value {
+        font-size: 1.8rem;
+        color: var(--primary-color);
+        margin: 0;
+    }
+
+    #modal-question {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    /* Стилизованный блок ответа */
+    #modal-answer {
+        display: none;
+        background: #f7f9fb;
+        border: 1px solid #e3edf7;
+        padding: 12px 14px;
+        border-radius: 8px;
+        color: #153a5b;
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    /* Стили для label внутри модалки */
+    .modal-content label {
+        font-size: 0.95rem;
+        color: #394a5a;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    /* Красивое поле ввода имени — визуально выделено, полноширинное */
+    #modal-name-input {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 2px solid rgba(0,123,255,0.12);
+        box-shadow: 0 6px 14px rgba(2,52,102,0.04);
+        font-size: 1rem;
+        outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        box-sizing: border-box;
+    }
+    #modal-name-input:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 8px 20px rgba(0,123,255,0.12);
+    }
+
+    /* Кнопки в модалке — блочные, одна под другой */
+    #modal-show-answer,
+    #modal-save-answer {
+        display: block;
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 700;
+        border: none;
+        cursor: pointer;
+    }
+
+    #modal-show-answer {
+        background: var(--secondary-action-color);
+        color: #fff;
+    }
+    #modal-show-answer:hover { background: #218838; }
+
+    #modal-save-answer {
+        background: var(--primary-color);
+        color: #fff;
+    }
+    #modal-save-answer:hover { background: var(--secondary-color); }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @keyframes slideIn {
+        from { transform: translateY(-18px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    </style>
+</head>
+<body>
+
+<!-- =============== МЕНЮ =============== -->
+<div id="menu">
+    <h1>Викторина</h1>
+    <button type="button" onclick="startNewQuiz()">Создать новую</button><br>
+    <input type="file" id="fileInput" />
+    <button type="button" onclick="loadFromFile()">Загрузить из файла</button>
+</div>
+
+<!-- =============== КОНСТРУКТОР =============== -->
+<div id="builder" class="hidden">
+    <h1>Конструктор викторины</h1>
+
+    <label>Название викторины</label>
+    <input id="quizTitle" placeholder="Название" />
+
+    <label>Количество категорий</label>
+    <input id="catCount" type="number" min="1" value="4" />
+    <button onclick="generateCategories()">Создать категории</button>
+
+    <div id="categories"></div>
+
+    <button onclick="saveQuizToFile()">Сохранить в файл</button>
+    <button onclick="buildAndStartQuiz()">Запустить викторину</button>
+</div>
+
+<!-- =============== ИГРА =============== -->
+<div class="container hidden" id="quiz">
+    <h1 id="quizTitleGame"></h1>
+    <div id="game-board"></div>
+</div>
+
+<!-- =============== МОДАЛКА =============== -->
+<div id="modal" class="modal-overlay">
+    <div class="modal-content">
+        <h2 id="modal-category"></h2>
+        <h3 id="modal-value"></h3>
+        <p id="modal-question"></p>
+
+        <button id="modal-show-answer" type="button">Показать ответ</button>
+        <p id="modal-answer"></p>
+
+        <!-- Имя ответившего — теперь под ответом (полноширинное, стиль выше) -->
+        <label for="modal-name-input">Имя ответившего</label>
+        <input id="modal-name-input" placeholder="Введите имя" />
+
+        <!-- Кнопка закрыть в самом низу -->
+        <button id="modal-save-answer" type="button">Закрыть</button>
+    </div>
+</div>
+
+<script>
+let quizData = { title:"", categories:[] };
+let currentCell = null;
+
+// явные ссылки на элементы страницы (чтобы startNewQuiz/loadFromFile и т.д. работали)
+const menu = document.getElementById('menu');
+const builder = document.getElementById('builder');
+const quiz = document.getElementById('quiz');
+const fileInput = document.getElementById('fileInput');
+const quizTitleGame = document.getElementById('quizTitleGame');
+const gameBoard = document.getElementById('game-board');
+
+/* Построение игровой сетки из quizData */
+function buildGridFromData(){
+    // переключаем видимость
+    menu.classList.add('hidden');
+    builder.classList.add('hidden');
+    quiz.classList.remove('hidden');
+
+    quizTitleGame.textContent = quizData.title || 'Викторина';
+
+    const board = gameBoard;
+    board.innerHTML = '';
+
+    const colCount = Math.max(1, quizData.categories.length);
+    board.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
+
+    // заголовки категорий
+    quizData.categories.forEach(cat => {
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.textContent = cat.name || 'Категория';
+        board.appendChild(header);
+    });
+
+    const maxQuestions = Math.max(...quizData.categories.map(c => (c.questions||[]).length), 0);
+
+    for(let row = 0; row < maxQuestions; row++){
+        quizData.categories.forEach(cat => {
+            const q = (cat.questions || [])[row];
+            if(!q){
+                board.appendChild(document.createElement('div'));
+                return;
+            }
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'question-cell';
+            btn.innerHTML = `<div class="cell-value">${q.value}</div><div class="cell-name"></div>`;
+            btn.dataset.question = q.text || '';
+            btn.dataset.answer = q.answer || '';
+            btn.dataset.category = cat.name || '';
+            btn.dataset.value = q.value || '';
+
+            // если в данных уже есть имя ответившего — показать
+            const answeredName = q.answeredName || q.answeredname || q.answeredBy || q.answerer || '';
+            if(answeredName){
+                btn.querySelector('.cell-name').textContent = answeredName;
+                btn.classList.add('answered','answered-name');
+                btn.dataset.answeredName = answeredName;
+            }
+
+            btn.addEventListener('click', ()=> openModal(btn));
+            board.appendChild(btn);
+        });
+    }
+}
+
+/* ================= МЕНЮ ================= */
+function startNewQuiz(){
+    menu.classList.add('hidden');
+    builder.classList.remove('hidden');
+}
+
+function loadFromFile(){
+    const f = fileInput.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = e =>{
+        quizData = JSON.parse(e.target.result);
+        buildGridFromData();
+    };
+    reader.readAsText(f);
+}
+
+/* =============== КОНСТРУКТОР =============== */
+function generateCategories(){
+    const count = Math.max(1, parseInt(document.getElementById('catCount').value) || 1);
+    const container = document.getElementById('categories');
+    container.innerHTML = '';
+    for(let i=0;i<count;i++){
+        const block = document.createElement('div');
+        block.className = 'category-block';
+        block.innerHTML = `
+            <label>Название категории</label>
+            <input class="cat-name" placeholder="Категория ${i+1}" />
+            <div class="questions-list"></div>
+            <div style="margin-top:10px;">
+                <button type="button" class="add-q">Добавить вопрос</button>
+            </div>
+        `;
+        container.appendChild(block);
+        // добавить 5 начальных вопросов
+        const qList = block.querySelector('.questions-list');
+        for(let q=0;q<5;q++){
+            addQuestionRowTo(qList);
+        }
+        // повесить обработчик кнопки добавления
+        block.querySelector('.add-q').addEventListener('click', ()=> addQuestionRow(block));
+    }
+}
+
+function addQuestionRow(containerOrBlock){
+    // containerOrBlock может быть блоком категории или элементом questions-list
+    const qList = containerOrBlock.querySelector ? containerOrBlock.querySelector('.questions-list') : containerOrBlock;
+    addQuestionRowTo(qList);
+}
+function addQuestionRowTo(qList){
+    const idx = qList.children.length + 1;
+    const row = document.createElement('div');
+    row.className = 'question-block';
+    row.style.display = 'grid';
+    row.style.gridTemplateColumns = '80px 1fr 1fr 110px';
+    row.style.gap = '8px';
+    row.style.alignItems = 'center';
+    row.style.marginBottom = '8px';
+    row.innerHTML = `
+        <input class="q-value" placeholder="Очки" value="${idx*5}" />
+        <input class="q-text" placeholder="Текст вопроса" />
+        <input class="q-answer" placeholder="Ответ (для показа)" />
+        <button type="button" class="remove-q">Удалить</button>
+    `;
+    qList.appendChild(row);
+    row.querySelector('.remove-q').addEventListener('click', ()=> row.remove());
+}
+
+function buildAndStartQuiz(){
+    const title = document.getElementById('quizTitle').value.trim() || 'Викторина';
+    const categoryBlocks = Array.from(document.querySelectorAll('.category-block'));
+    const categories = categoryBlocks.map(cb => {
+        const name = cb.querySelector('.cat-name').value.trim() || 'Категория';
+        const qEls = Array.from(cb.querySelectorAll('.question-block'));
+        const questions = qEls.map(qel => {
+            const value = qel.querySelector('.q-value').value.trim() || '0';
+            const text = qel.querySelector('.q-text').value.trim() || '';
+            const answer = qel.querySelector('.q-answer').value.trim() || '';
+            return { value, text, answer };
+        }).filter(q => q.text || q.answer); // убрать пустые
+        return { name, questions };
+    }).filter(c => c.questions.length > 0);
+    quizData = { title, categories: categories.length ? categories : [{ name: 'Категория 1', questions: [] }] };
+    buildGridFromData();
+}
+
+function saveQuizToFile(){
+    // собираем данные так же, как в buildAndStartQuiz, но сохраняем в файл
+    const title = document.getElementById('quizTitle').value.trim() || 'Викторина';
+    const categoryBlocks = Array.from(document.querySelectorAll('.category-block'));
+    const categories = categoryBlocks.map(cb => {
+        const name = cb.querySelector('.cat-name').value.trim() || 'Категория';
+        const qEls = Array.from(cb.querySelectorAll('.question-block'));
+        const questions = qEls.map(qel => {
+            const value = qel.querySelector('.q-value').value.trim() || '0';
+            const text = qel.querySelector('.q-text').value.trim() || '';
+            const answer = qel.querySelector('.q-answer').value.trim() || '';
+            return { value, text, answer };
+        }).filter(q => q.text || q.answer);
+        return { name, questions };
+    }).filter(c => c.questions.length > 0);
+    const data = { title, categories: categories.length ? categories : [{ name: 'Категория 1', questions: [] }] };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (title || 'quiz') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+/* =============== МОДАЛКА =============== */
+const modal = document.getElementById('modal');
+const modalCategory = document.getElementById('modal-category');
+const modalValue = document.getElementById('modal-value');
+const modalQuestion = document.getElementById('modal-question');
+const modalAnswer = document.getElementById('modal-answer');
+const modalShow = document.getElementById('modal-show-answer');
+const modalSave = document.getElementById('modal-save-answer');
+const modalNameInput = document.getElementById('modal-name-input');
+
+function openModal(cell){
+    currentCell = cell;
+    modalCategory.textContent = cell.dataset.category;
+    modalValue.textContent = `За ${cell.dataset.value} очков`;
+    modalQuestion.textContent = cell.dataset.question;
+    modalAnswer.textContent = cell.dataset.answer;
+    modalAnswer.style.display = 'none';
+    // подставить имеющееся имя, если уже есть
+    const existingName = cell.querySelector('.cell-name')?.textContent || '';
+    modalNameInput.value = existingName;
+    modal.classList.add('show');
+}
+
+modalShow.onclick = ()=>{
+    modalAnswer.style.display = 'block';
+};
+
+modalSave.onclick = ()=>{
+    const name = modalNameInput.value.trim();
+    if(currentCell){
+        // пометить как отвечено (всё ещё помечаем классом, но не дизейблим)
+        currentCell.classList.add('answered');
+        // currentCell.disabled = true;  <-- удалено: не блокировать плитку
+
+        const nameEl = currentCell.querySelector('.cell-name');
+
+        if(name){
+            nameEl.textContent = name;
+            currentCell.classList.add('answered-name');
+            currentCell.dataset.answeredName = name; // сохраняем в dataset
+        } else {
+            nameEl.textContent = '';
+            currentCell.classList.remove('answered-name');
+            delete currentCell.dataset.answeredName;
+        }
+
+        // также сохранить в quizData (если есть) для персистентности
+        try {
+            const catName = currentCell.dataset.category;
+            const value = currentCell.dataset.value;
+            const cat = quizData.categories.find(c => c.name === catName);
+            if(cat){
+                const qObj = cat.questions.find(q => String(q.value) === String(value) && q.text === currentCell.dataset.question);
+                if(qObj) qObj.answeredName = name || '';
+            }
+        } catch(e) { /* безопасно игнорируем */ }
+    }
+    modal.classList.remove('show');
+};
+
+</script>
+</body>
+</html>
