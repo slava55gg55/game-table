@@ -241,6 +241,16 @@
         align-items: stretch;
     }
 
+    .modal-image {
+        width: 100%;
+        max-height: 60vh;
+        object-fit: contain;
+        background: #f4f7f6;
+        border-radius: 8px;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+        display: none;
+    }
+
     #modal-category {
         font-size: 1.2rem;
         color: var(--secondary-color);
@@ -368,6 +378,7 @@
 <!-- =============== МОДАЛКА =============== -->
 <div id="modal" class="modal-overlay">
     <div class="modal-content">
+        <img id="modal-image" class="modal-image" alt="Иллюстрация к вопросу" />
         <h2 id="modal-category"></h2>
         <h3 id="modal-value"></h3>
         <p id="modal-question"></p>
@@ -436,6 +447,7 @@ function buildGridFromData(){
             btn.dataset.answer = q.answer || '';
             btn.dataset.category = cat.name || '';
             btn.dataset.value = q.value || '';
+            btn.dataset.image = q.image || '';
 
             // если в данных уже есть имя ответившего — показать
             const answeredName = q.answeredName || q.answeredname || q.answeredBy || q.answerer || '';
@@ -505,7 +517,7 @@ function addQuestionRowTo(qList){
     const row = document.createElement('div');
     row.className = 'question-block';
     row.style.display = 'grid';
-    row.style.gridTemplateColumns = '80px 1fr 1fr 110px';
+    row.style.gridTemplateColumns = '80px 1fr 1fr 1fr 110px';
     row.style.gap = '8px';
     row.style.alignItems = 'center';
     row.style.marginBottom = '8px';
@@ -513,6 +525,7 @@ function addQuestionRowTo(qList){
         <input class="q-value" placeholder="Очки" value="${idx*5}" />
         <input class="q-text" placeholder="Текст вопроса" />
         <input class="q-answer" placeholder="Ответ (для показа)" />
+        <input class="q-image" placeholder="Ссылка на картинку (URL)" />
         <button type="button" class="remove-q">Удалить</button>
     `;
     qList.appendChild(row);
@@ -529,7 +542,8 @@ function buildAndStartQuiz(){
             const value = qel.querySelector('.q-value').value.trim() || '0';
             const text = qel.querySelector('.q-text').value.trim() || '';
             const answer = qel.querySelector('.q-answer').value.trim() || '';
-            return { value, text, answer };
+            const image = qel.querySelector('.q-image')?.value.trim() || '';
+            return { value, text, answer, image };
         }).filter(q => q.text || q.answer); // убрать пустые
         return { name, questions };
     }).filter(c => c.questions.length > 0);
@@ -548,7 +562,8 @@ function saveQuizToFile(){
             const value = qel.querySelector('.q-value').value.trim() || '0';
             const text = qel.querySelector('.q-text').value.trim() || '';
             const answer = qel.querySelector('.q-answer').value.trim() || '';
-            return { value, text, answer };
+            const image = qel.querySelector('.q-image')?.value.trim() || '';
+            return { value, text, answer, image };
         }).filter(q => q.text || q.answer);
         return { name, questions };
     }).filter(c => c.questions.length > 0);
@@ -573,6 +588,7 @@ const modalAnswer = document.getElementById('modal-answer');
 const modalShow = document.getElementById('modal-show-answer');
 const modalSave = document.getElementById('modal-save-answer');
 const modalNameInput = document.getElementById('modal-name-input');
+const modalImage = document.getElementById('modal-image');
 
 function openModal(cell){
     currentCell = cell;
@@ -581,6 +597,14 @@ function openModal(cell){
     modalQuestion.textContent = cell.dataset.question;
     modalAnswer.textContent = cell.dataset.answer;
     modalAnswer.style.display = 'none';
+    const imageUrl = cell.dataset.image || '';
+    if(imageUrl){
+        modalImage.src = imageUrl;
+        modalImage.style.display = 'block';
+    } else {
+        modalImage.removeAttribute('src');
+        modalImage.style.display = 'none';
+    }
     // подставить имеющееся имя, если уже есть
     const existingName = cell.querySelector('.cell-name')?.textContent || '';
     modalNameInput.value = existingName;
